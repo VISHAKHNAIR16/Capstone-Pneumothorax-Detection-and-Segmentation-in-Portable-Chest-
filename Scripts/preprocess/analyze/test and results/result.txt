@@ -1,0 +1,79 @@
+Selected 1000 images for analysis
+
+============================================================
+GENERATING COMPREHENSIVE ANALYSIS REPORT
+============================================================
+
+============================================================
+WINDOWING ANALYSIS
+============================================================
+✓ Standard Chest X-ray (WL=40, WW=350): mean=224.0, std=32.3
+✓ High Contrast (WL=40, WW=200): mean=244.3, std=25.3
+✓ Low Contrast (WL=40, WW=500): mean=195.8, std=23.5
+✓ Alternative (WL=50, WW=400): mean=206.6, std=29.4
+✓ Standard Chest X-ray (WL=40, WW=350): mean=191.5, std=49.9
+✓ High Contrast (WL=40, WW=200): mean=210.2, std=59.7
+✓ Low Contrast (WL=40, WW=500): mean=172.8, std=35.8
+✓ Alternative (WL=50, WW=400): mean=177.8, std=44.7
+✓ Standard Chest X-ray (WL=40, WW=350): mean=188.1, std=41.1
+✓ High Contrast (WL=40, WW=200): mean=215.3, std=53.0
+✓ Low Contrast (WL=40, WW=500): mean=170.2, std=29.5
+✓ Alternative (WL=50, WW=400): mean=174.6, std=36.9
+
+============================================================
+CLAHE IMPACT ANALYSIS
+============================================================
+✓ No CLAHE: mean=224.0, std=32.3
+✓ Low CLAHE: mean=211.2, std=42.9
+✓ Standard CLAHE: mean=200.4, std=51.1
+✓ High CLAHE: mean=185.4, std=60.5
+✓ No CLAHE: mean=191.5, std=49.9
+✓ Low CLAHE: mean=180.1, std=57.0
+✓ Standard CLAHE: mean=171.5, std=61.6
+✓ High CLAHE: mean=161.2, std=65.7
+✓ No CLAHE: mean=188.1, std=41.1
+✓ Low CLAHE: mean=176.2, std=49.3
+✓ Standard CLAHE: mean=166.9, std=54.9
+✓ High CLAHE: mean=154.7, std=60.7
+
+============================================================
+RESIZE INTERPOLATION ANALYSIS
+============================================================
+✓ Nearest: mean=0.5709, std=0.4011, edges=11239635
+✓ Linear: mean=0.5715, std=0.4001, edges=10109220
+✓ Cubic: mean=0.5715, std=0.4008, edges=11215155
+✓ Lanczos4: mean=0.5715, std=0.4007, edges=11168490
+✓ Nearest: mean=0.3451, std=0.4829, edges=10057200
+✓ Linear: mean=0.3452, std=0.4825, edges=8427495
+✓ Cubic: mean=0.3451, std=0.4829, edges=9544905
+✓ Lanczos4: mean=0.3451, std=0.4829, edges=9628545
+✓ Nearest: mean=0.3089, std=0.4306, edges=13235265
+✓ Linear: mean=0.3089, std=0.4294, edges=11928900
+✓ Cubic: mean=0.3088, std=0.4306, edges=13101390
+✓ Lanczos4: mean=0.3087, std=0.4306, edges=13031520
+
+============================================================
+NORMALIZATION ANALYSIS
+============================================================
+✓ Zero to One [0, 1]: range=[0.1020, 1.0000], mean=0.7858
+✓ Minus One to One [-1, 1]: range=[-0.7961, 1.0000], mean=0.5715
+✓ Zero to One [0, 1]: range=[0.0863, 1.0000], mean=0.6726
+✓ Minus One to One [-1, 1]: range=[-0.8275, 1.0000], mean=0.3452
+✓ Zero to One [0, 1]: range=[0.1412, 1.0000], mean=0.6544
+✓ Minus One to One [-1, 1]: range=[-0.7176, 1.0000], mean=0.3089
+
+✓ Results saved:
+  - ./analysis_windowing.csv
+  - ./analysis_clahe.csv
+  - ./analysis_resize.csv
+  - ./analysis_normalization.csv
+
+  - ./analysis_summary.csv
+
+            Analysis           Best Parameter
+           Windowing            High Contrast
+               CLAHE               High CLAHE
+Resize Interpolation                  Nearest
+       Normalization Minus One to One [-1, 1]
+
+✓ Analysis complete!
