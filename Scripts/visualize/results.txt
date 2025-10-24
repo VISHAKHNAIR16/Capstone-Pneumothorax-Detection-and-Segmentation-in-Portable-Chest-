@@ -1,0 +1,48 @@
+============================================================
+SIIM-ACR PNEUMOTHORAX DATASET EXPLORATION
+============================================================
+Loading dataset CSV...
+Total images: 11582
+Images with pneumothorax: 3286 (28.37%)
+Images without pneumothorax: 8296 (71.63%)
+
+Analyzing pneumothorax sizes...
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 3286/3286 [00:13<00:00, 242.28it/s]
+
+============================================================
+STATISTICAL SUMMARY OF PNEUMOTHORAX DATASET
+============================================================
+
+--- SIZE STATISTICS ---
+Mean size: 1.033% of image
+Median size: 0.596% of image
+Std deviation: 1.284%
+Min size: 0.005%
+Max size: 15.394%
+
+--- SIZE CATEGORIES ---
+Very Small  : 1429 images (43.49%)
+Small       : 1181 images (35.94%)
+Medium      :  471 images (14.33%)
+Large       :  171 images ( 5.20%)
+Very Large  :   34 images ( 1.03%)
+
+--- SHAPE COMPLEXITY ---
+Mean number of runs: 186.4
+Median number of runs: 184.0
+Max number of runs: 729
+
+--- BOUNDING BOX STATISTICS ---
+Mean height: 180.9 pixels
+Mean width: 171.9 pixels
+
+--- KEY INSIGHTS FOR YOUR PROJECT ---
+• 79.4% of pneumothoraces are SMALL (<1.5% of image)
+  → These are clinically critical but easy to miss!
+  → Your augmentation should oversample these cases
+
+• 82.5% have COMPLEX shapes (>100 runs)
+  → Irregular boundaries are common
+  → Model needs to handle non-circular shapes
+
+============================================================
