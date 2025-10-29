@@ -1,0 +1,96 @@
+{
+  "mathematical_validation": {
+    "stage_stats": [
+      {
+        "name": "Original",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "uint8",
+        "mean": 109.0120792388916,
+        "std": 76.83839412734554,
+        "min": 0.0,
+        "max": 250.0
+      },
+      {
+        "name": "With Artifacts",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "uint8",
+        "mean": 112.93141460418701,
+        "std": 76.04832281576975,
+        "min": 0.0,
+        "max": 250.0
+      },
+      {
+        "name": "Preprocessed",
+        "shape": [
+          512,
+          512
+        ],
+        "dtype": "float32",
+        "mean": 0.26230180263519287,
+        "std": 0.5054905414581299,
+        "min": -0.8039215803146362,
+        "max": 1.0
+      },
+      {
+        "name": "Augmented",
+        "shape": [
+          512,
+          512
+        ],
+        "dtype": "float64",
+        "mean": 0.2580221429735135,
+        "std": 0.5982788971834045,
+        "min": -1.0,
+        "max": 1.0
+      }
+    ],
+    "checks": {
+      "original_range_valid": "True",
+      "artifacts_range_valid": "True",
+      "preprocess_range_valid": "True",
+      "augment_range_valid": "True",
+      "mean_stability": "True",
+      "std_stability": "True"
+    },
+    "all_passed": true
+  },
+  "visual_validation": {
+    "samples": 5,
+    "good_quality_rate": 80.0,
+    "all_passed": false
+  },
+  "comparative_analysis": {
+    "psnr_no_aug": 28.91870308047593,
+    "ssim_no_aug": 0.9506976185158744,
+    "psnr_after_aug": 18.875629372608536,
+    "ssim_after_aug": 0.3884507982114164,
+    "checks": {
+      "artifact_effect_visible": "True",
+      "artifact_effect_persists": "True",
+      "psnr_acceptable": "False",
+      "ssim_high": "False"
+    }
+  },
+  "quality_metrics": {
+    "psnr_mean": 22.683309829359047,
+    "psnr_std": 2.5601200356195912,
+    "ssim_mean": 0.664602891164366,
+    "ssim_std": 0.05795188045804978,
+    "checks": {
+      "psnr_min_acceptable": "False",
+      "psnr_consistent": "True",
+      "ssim_min_acceptable": "False",
+      "ssim_consistent": "True",
+      "mean_stable": "True",
+      "std_stable": "True"
+    },
+    "all_passed": false
+  },
+  "error_log": []
+}
