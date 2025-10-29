@@ -301,7 +301,7 @@ def main():
     
     visualizer = FixedPipelineVisualizer(output_dir="pipeline_visualizations_fixed")
     
-    image_path = r"C:/Users/VISHAKH NAIR/Desktop/CAPSTONE/Capstone-Pneumothorax-Detection-and-Segmentation-in-Portable-Chest-/Data/siim-original/dicom-images-train/1.2.276.0.7230010.3.1.2.8323329.306.1517875162.312800/1.2.276.0.7230010.3.1.3.8323329.306.1517875162.312799/1.2.276.0.7230010.3.1.4.8323329.306.1517875162.312801.dcm"
+    image_path = r"C:/Users/VISHAKH NAIR/Desktop/CAPSTONE/Capstone-Pneumothorax-Detection-and-Segmentation-in-Portable-Chest-/Data/siim-original/dicom-images-train/1.2.276.0.7230010.3.1.2.8323329.314.1517875162.344456/1.2.276.0.7230010.3.1.3.8323329.314.1517875162.344455/1.2.276.0.7230010.3.1.4.8323329.314.1517875162.344457.dcm"
     
     stages = visualizer.visualize_fixed_pipeline(
         image_path=image_path,

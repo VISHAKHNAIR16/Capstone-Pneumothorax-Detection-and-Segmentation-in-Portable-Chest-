@@ -1,6 +1,7 @@
 """
 Production-Ready Chest X-ray Artifact Augmentation Generator
 Medical devices appear BRIGHT (radiopaque) with realistic parameters and placement
+FIXED: ECG wire connections now terminate naturally at electrode edges
 """
 
 import numpy as np
@@ -142,6 +143,39 @@ class ChestXRayArtifactGenerator:
         else:
             return img_uint8
 
+    def _calculate_bezier_curve(self, start_pt: Tuple[int, int], end_pt: Tuple[int, int], 
+                               control_offset: int = 20, num_points: int = 20) -> List[Tuple[int, int]]:
+        """Calculate Bezier curve points for natural wire curvature"""
+        start_x, start_y = start_pt
+        end_x, end_y = end_pt
+        
+        # Calculate control point for natural curve
+        mid_x = (start_x + end_x) // 2
+        mid_y = (start_y + end_y) // 2
+        
+        # Add perpendicular offset for natural sag
+        dx = end_x - start_x
+        dy = end_y - start_y
+        
+        # Calculate perpendicular direction for natural wire sag
+        if abs(dx) > abs(dy):
+            # More horizontal wire - sag vertically
+            control_x = mid_x
+            control_y = mid_y + control_offset
+        else:
+            # More vertical wire - sag horizontally
+            control_x = mid_x + control_offset
+            control_y = mid_y
+        
+        # Generate Bezier curve points
+        curve_points = []
+        for t in np.linspace(0, 1, num_points):
+            x = (1-t)**2 * start_x + 2*(1-t)*t * control_x + t**2 * end_x
+            y = (1-t)**2 * start_y + 2*(1-t)*t * control_y + t**2 * end_y
+            curve_points.append((int(x), int(y)))
+        
+        return curve_points
+
     def add_pacemaker(self, img: np.ndarray) -> np.ndarray:
         """
         Add realistic pacemaker with leads
@@ -169,39 +203,49 @@ class ChestXRayArtifactGenerator:
         center_x = random.randint(int(region['x'][0] * w), int(region['x'][1] * w))
         center_y = random.randint(int(region['y'][0] * h), int(region['y'][1] * h))
         
+        # Create temporary canvas for OpenCV drawing
+        cv2_canvas = result.astype(np.uint8)
+        cv2_mask = artifact_mask.astype(np.uint8) * 255
+        
         # Create pacemaker device (elliptical)
         device_intensity = self._get_intensity('pacemaker')
         rr, cc = draw.ellipse(center_y, center_x, device_h//2, device_w//2, shape=(h, w))
         result[rr, cc] = device_intensity
         artifact_mask[rr, cc] = True
         
-        # Create pacemaker leads (thin bright lines)
+        # Create pacemaker leads with OpenCV antialiasing
         lead_intensity = self._get_intensity('pacemaker')
         
-        # Lead 1: Downward curve
+        # Lead 1: Downward curve with OpenCV line drawing
         lead1_points = 20
+        prev_point = None
         for i in range(lead1_points):
             y = center_y + int(i * 0.02 * h)
             x = center_x + int(np.sin(i * 0.3) * 0.01 * w)
+            current_point = (x, y)
             
-            # Draw lead with width
-            for dy in range(-lead_width, lead_width + 1):
-                for dx in range(-lead_width, lead_width + 1):
-                    if dx*dx + dy*dy <= lead_width*lead_width:
-                        py, px = y + dy, x + dx
-                        if 0 <= py < h and 0 <= px < w:
-                            result[py, px] = lead_intensity
-                            artifact_mask[py, px] = True
+            if prev_point is not None:
+                # Draw line segment with OpenCV antialiasing
+                cv2.line(cv2_canvas, prev_point, current_point, 
+                        lead_intensity, thickness=lead_width, lineType=cv2.LINE_AA)
+                cv2.line(cv2_mask, prev_point, current_point, 
+                        255, thickness=lead_width, lineType=cv2.LINE_AA)
+            
+            prev_point = current_point
         
-        # Lead 2: Straight down
+        # Lead 2: Straight down with OpenCV line drawing
         lead2_length = random.randint(int(0.08 * h), int(0.12 * h))
-        for i in range(lead2_length):
-            y = center_y + i
-            x = center_x - lead_width
-            
-            if y < h and 0 <= x < w:
-                result[y, x] = lead_intensity
-                artifact_mask[y, x] = True
+        end_y = center_y + lead2_length
+        end_x = center_x - lead_width
+        
+        cv2.line(cv2_canvas, (center_x, center_y), (end_x, end_y),
+                lead_intensity, thickness=lead_width, lineType=cv2.LINE_AA)
+        cv2.line(cv2_mask, (center_x, center_y), (end_x, end_y),
+                255, thickness=lead_width, lineType=cv2.LINE_AA)
+        
+        # Update result and mask from OpenCV drawing
+        result = cv2_canvas.astype(float)
+        artifact_mask = cv2_mask.astype(bool)
         
         # Apply blending and restore original range
         blended = self._blend_artifact(img_uint8, result.astype(np.uint8), artifact_mask)
@@ -229,6 +273,10 @@ class ChestXRayArtifactGenerator:
         start_x = random.randint(int(region['x'][0] * w), int(region['x'][1] * w))
         start_y = random.randint(int(region['y'][0] * h), int(region['y'][1] * h))
         
+        # Create temporary canvas for OpenCV drawing
+        cv2_canvas = result.astype(np.uint8)
+        cv2_mask = artifact_mask.astype(np.uint8) * 255
+        
         # Create curved chest tube path
         end_x = start_x + tube_length
         end_y = start_y + random.randint(-int(0.02 * h), int(0.02 * h))
@@ -243,38 +291,38 @@ class ChestXRayArtifactGenerator:
         for t in t_values:
             x = (1-t)**2 * start_x + 2*(1-t)*t * control_x + t**2 * end_x
             y = (1-t)**2 * start_y + 2*(1-t)*t * control_y + t**2 * end_y
-            curve_points.append((int(y), int(x)))
+            curve_points.append((int(x), int(y)))  # Store as (x, y) for OpenCV
         
-        # Draw chest tube along curve
+        # Draw chest tube along curve with OpenCV antialiasing
         tube_intensity = self._get_intensity('chest_tube')
         for i in range(len(curve_points) - 1):
-            y1, x1 = curve_points[i]
-            y2, x2 = curve_points[i + 1]
+            pt1 = curve_points[i]
+            pt2 = curve_points[i + 1]
             
-            # Draw line segment with tube width
-            rr, cc = draw.line(y1, x1, y2, x2)
-            for y, x in zip(rr, cc):
-                if 0 <= y < h and 0 <= x < w:
-                    # Create circular cross-section
-                    for dy in range(-tube_width, tube_width + 1):
-                        for dx in range(-tube_width, tube_width + 1):
-                            if dx*dx + dy*dy <= tube_width*tube_width:
-                                py, px = y + dy, x + dx
-                                if 0 <= py < h and 0 <= px < w:
-                                    result[py, px] = tube_intensity
-                                    artifact_mask[py, px] = True
+            # Draw line segment with OpenCV antialiasing
+            cv2.line(cv2_canvas, pt1, pt2, 
+                    tube_intensity, thickness=tube_width, lineType=cv2.LINE_AA)
+            cv2.line(cv2_mask, pt1, pt2, 
+                    255, thickness=tube_width, lineType=cv2.LINE_AA)
         
-        # Add drain holes (small bright circles along tube)
+        # Add drain holes (small bright circles along tube) with OpenCV
         num_holes = random.randint(2, 4)
         for i in range(1, num_holes + 1):
             t = i / (num_holes + 1)
             hole_idx = int(t * len(curve_points))
             if hole_idx < len(curve_points):
-                hole_y, hole_x = curve_points[hole_idx]
+                hole_x, hole_y = curve_points[hole_idx]
                 hole_radius = max(1, tube_width // 2)
-                rr, cc = draw.disk((hole_y, hole_x), hole_radius, shape=(h, w))
-                result[rr, cc] = tube_intensity + 10  # Slightly brighter
-                artifact_mask[rr, cc] = True
+                
+                # Draw circle with OpenCV antialiasing
+                cv2.circle(cv2_canvas, (hole_x, hole_y), hole_radius,
+                          tube_intensity + 10, thickness=-1, lineType=cv2.LINE_AA)
+                cv2.circle(cv2_mask, (hole_x, hole_y), hole_radius,
+                          255, thickness=-1, lineType=cv2.LINE_AA)
+        
+        # Update result and mask from OpenCV drawing
+        result = cv2_canvas.astype(float)
+        artifact_mask = cv2_mask.astype(bool)
         
         blended = self._blend_artifact(img_uint8, result.astype(np.uint8), artifact_mask)
         return self._restore_original_range(blended, img)
@@ -295,6 +343,10 @@ class ChestXRayArtifactGenerator:
         line_diameter = random.uniform(*self.device_sizes_mm['central_line'])
         line_width = self.mm_to_pixels((line_diameter, 0), (h, w))[0]
         
+        # Create temporary canvas for OpenCV drawing
+        cv2_canvas = result.astype(np.uint8)
+        cv2_mask = artifact_mask.astype(np.uint8) * 255
+        
         # Placement from neck to superior vena cava
         region = self.placement_regions['central_line']
         start_x = random.randint(int(region['x'][0] * w), int(region['x'][1] * w))
@@ -305,26 +357,23 @@ class ChestXRayArtifactGenerator:
         end_y = min(h - 1, start_y + line_length)
         end_x = start_x + random.randint(-int(0.02 * w), int(0.02 * w))
         
-        # Draw central line
+        # Draw central line with OpenCV antialiasing
         line_intensity = self._get_intensity('central_line')
-        rr, cc = draw.line(start_y, start_x, end_y, end_x)
+        cv2.line(cv2_canvas, (start_x, start_y), (end_x, end_y),
+                line_intensity, thickness=line_width, lineType=cv2.LINE_AA)
+        cv2.line(cv2_mask, (start_x, start_y), (end_x, end_y),
+                255, thickness=line_width, lineType=cv2.LINE_AA)
         
-        for y, x in zip(rr, cc):
-            if 0 <= y < h and 0 <= x < w:
-                # Create line with width
-                for dy in range(-line_width, line_width + 1):
-                    for dx in range(-line_width, line_width + 1):
-                        if dx*dx + dy*dy <= line_width*line_width:
-                            py, px = y + dy, x + dx
-                            if 0 <= py < h and 0 <= px < w:
-                                result[py, px] = line_intensity
-                                artifact_mask[py, px] = True
-        
-        # Add hub/connector at insertion site
+        # Add hub/connector at insertion site with OpenCV
         hub_radius = line_width + 2
-        rr, cc = draw.disk((start_y, start_x), hub_radius, shape=(h, w))
-        result[rr, cc] = line_intensity + 5
-        artifact_mask[rr, cc] = True
+        cv2.circle(cv2_canvas, (start_x, start_y), hub_radius,
+                  line_intensity + 5, thickness=-1, lineType=cv2.LINE_AA)
+        cv2.circle(cv2_mask, (start_x, start_y), hub_radius,
+                  255, thickness=-1, lineType=cv2.LINE_AA)
+        
+        # Update result and mask from OpenCV drawing
+        result = cv2_canvas.astype(float)
+        artifact_mask = cv2_mask.astype(bool)
         
         blended = self._blend_artifact(img_uint8, result.astype(np.uint8), artifact_mask)
         return self._restore_original_range(blended, img)
@@ -334,12 +383,20 @@ class ChestXRayArtifactGenerator:
         Add realistic ECG electrodes and wires
         Coverage: < 5% of image
         Intensity: Electrodes 200-220, Wires 180-200
+        
+        FIXED: Natural wire termination at electrode edges with curved connections
+        FIXED: Wires drawn FIRST, then electrodes on top
+        FIXED: OpenCV antialiasing for smooth edges
         """
         img_uint8 = self._normalize_to_uint8(img)
         h, w = img_uint8.shape[:2]
         
         result = img_uint8.copy().astype(float)
         artifact_mask = np.zeros((h, w), dtype=bool)
+        
+        # Create temporary canvas for OpenCV drawing
+        cv2_canvas = result.astype(np.uint8)
+        cv2_mask = artifact_mask.astype(np.uint8) * 255
         
         # Electrode parameters
         electrode_diameter = random.uniform(*self.device_sizes_mm['ecg_electrode'])
@@ -351,34 +408,70 @@ class ChestXRayArtifactGenerator:
         for region in self.placement_regions['ecg_electrodes']:
             x = random.randint(int(region['x'][0] * w), int(region['x'][1] * w))
             y = random.randint(int(region['y'][0] * h), int(region['y'][1] * h))
-            electrode_positions.append((y, x))
+            electrode_positions.append((x, y))  # Store as (x, y) for OpenCV
         
-        # Add electrodes (bright circles)
-        electrode_intensity = self._get_intensity('ecg_electrode')
-        for y, x in electrode_positions:
-            rr, cc = draw.disk((y, x), electrode_radius, shape=(h, w))
-            result[rr, cc] = electrode_intensity
-            artifact_mask[rr, cc] = True
+        # FIXED: Calculate connection points at electrode edges (not centers)
+        chest_lead_pos = electrode_positions[4]  # V lead is the chest connection point
         
-        # Add connecting wires (thinner, slightly less bright)
+        # FIXED: DRAW CONNECTING WIRES FIRST (before electrodes) with natural curvature
         wire_intensity = self._get_intensity('ecg_wire')
-        connections = [(0, 4), (1, 4), (2, 4), (3, 4)]  # All to chest lead
+        limb_lead_indices = [0, 1, 2, 3]  # RA, LA, RL, LL
         
-        for i, j in connections:
-            y1, x1 = electrode_positions[i]
-            y2, x2 = electrode_positions[j]
+        for lead_idx in limb_lead_indices:
+            limb_lead_pos = electrode_positions[lead_idx]
             
-            rr, cc = draw.line(y1, x1, y2, x2)
-            for y, x in zip(rr, cc):
-                if 0 <= y < h and 0 <= x < w:
-                    # Create wire with width
-                    for dy in range(-wire_width, wire_width + 1):
-                        for dx in range(-wire_width, wire_width + 1):
-                            if dx*dx + dy*dy <= wire_width*wire_width:
-                                py, px = y + dy, x + dx
-                                if 0 <= py < h and 0 <= px < w:
-                                    result[py, px] = wire_intensity
-                                    artifact_mask[py, px] = True
+            # Calculate direction vector from chest lead to limb lead
+            dx = limb_lead_pos[0] - chest_lead_pos[0]
+            dy = limb_lead_pos[1] - chest_lead_pos[1]
+            distance = np.sqrt(dx*dx + dy*dy)
+            
+            if distance > 0:
+                # Normalize direction vector
+                dx /= distance
+                dy /= distance
+                
+                # Calculate start point (at chest lead edge)
+                start_x = chest_lead_pos[0] + int(dx * (electrode_radius + 2))
+                start_y = chest_lead_pos[1] + int(dy * (electrode_radius + 2))
+                
+                # Calculate end point (at limb lead edge)
+                end_x = limb_lead_pos[0] - int(dx * (electrode_radius + 2))
+                end_y = limb_lead_pos[1] - int(dy * (electrode_radius + 2))
+                
+                # Generate curved wire path with natural sag
+                curve_points = self._calculate_bezier_curve(
+                    (start_x, start_y), 
+                    (end_x, end_y),
+                    control_offset=random.randint(15, 30),
+                    num_points=15
+                )
+                
+                # Draw curved wire with OpenCV antialiasing
+                for i in range(len(curve_points) - 1):
+                    cv2.line(cv2_canvas, curve_points[i], curve_points[i+1],
+                            wire_intensity, thickness=wire_width, lineType=cv2.LINE_AA)
+                    cv2.line(cv2_mask, curve_points[i], curve_points[i+1],
+                            255, thickness=wire_width, lineType=cv2.LINE_AA)
+        
+        # FIXED: DRAW ELECTRODES SECOND (on top of wires)
+        electrode_intensity = self._get_intensity('ecg_electrode')
+        for i, (x, y) in enumerate(electrode_positions):
+            # Draw electrode with OpenCV antialiasing
+            cv2.circle(cv2_canvas, (x, y), electrode_radius,
+                      electrode_intensity, thickness=-1, lineType=cv2.LINE_AA)
+            
+            # Add electrode center contact point
+            contact_radius = max(2, electrode_radius // 3)
+            cv2.circle(cv2_canvas, (x, y), contact_radius,
+                      min(255, electrode_intensity + 15), thickness=-1, lineType=cv2.LINE_AA)
+            
+            # Update mask for electrode
+            cv2.circle(cv2_mask, (x, y), electrode_radius,
+                      255, thickness=-1, lineType=cv2.LINE_AA)
+        
+        # Update result and mask from OpenCV drawing
+        result = cv2_canvas.astype(float)
+        artifact_mask = cv2_mask.astype(bool)
         
         blended = self._blend_artifact(img_uint8, result.astype(np.uint8), artifact_mask)
         return self._restore_original_range(blended, img)
@@ -482,6 +575,12 @@ def demo_artifact_generation():
     sample_img = np.random.randint(100, 180, (512, 512), dtype=np.uint8)
     
     print("CHEST X-RAY ARTIFACT GENERATOR - PRODUCTION VALIDATION")
+    print("=" * 60)
+    print("CRITICAL FIXES APPLIED:")
+    print("✓ ECG Wire Connections: Natural termination at electrode edges")
+    print("✓ Curved Wires: Realistic sag and routing")
+    print("✓ Layer Ordering: Wires drawn first, electrodes on top")
+    print("✓ OpenCV Antialiasing: Smooth edges for all artifacts")
     print("=" * 60)
     
     # Test each artifact type
