@@ -34,7 +34,7 @@ class ChestXRayArtifactGenerator:
         
         # Clinical intensity ranges (BRIGHT - radiopaque)
         self.intensity_ranges = {
-            'pacemaker': (240, 255),      # Very bright - metallic
+            'pacemaker': (250, 265),      # Very bright - metallic
             'chest_tube': (220, 240),     # Bright - plastic/metal
             'central_line': (230, 245),   # Bright - plastic
             'ecg_electrode': (200, 220),  # Moderately bright - electrode gel
@@ -44,11 +44,11 @@ class ChestXRayArtifactGenerator:
         
         # Realistic sizes in mm (converted to pixels at 512x512 ~0.5mm/pixel)
         self.device_sizes_mm = {
-            'pacemaker_device': (40, 60),     # 40-60mm typical pacemaker
+            'pacemaker_device': (11, 21),     # 15-25mm typical pacemaker
             'pacemaker_lead': (2, 3),         # 2-3mm lead diameter
-            'chest_tube': (10, 14),           # 10-14mm diameter
+            'chest_tube': (6, 10),           # 10-14mm diameter
             'central_line': (3, 5),           # 3-5mm diameter  
-            'ecg_electrode': (15, 25),        # 15-25mm electrode
+            'ecg_electrode': (3, 2),        # 15-25mm electrode
             'ecg_wire': (1, 2),               # 1-2mm wire diameter
         }
         
@@ -57,21 +57,21 @@ class ChestXRayArtifactGenerator:
             'pacemaker': 0.02,    # < 2%
             'chest_tube': 0.03,   # < 3%
             'central_line': 0.01, # < 1%
-            'ecg_leads': 0.05,    # < 5%
-            'multiple': 0.08,     # < 8% total
+            'ecg_leads': 0.03,    # < 5%
+            'multiple': 0.07,     # < 8% total
         }
         
         # Anatomical placement regions (normalized coordinates)
         self.placement_regions = {
-            'pacemaker': {'x': (0.6, 0.9), 'y': (0.1, 0.25)},    # Right upper chest
-            'chest_tube': {'x': (0.1, 0.3), 'y': (0.4, 0.7)},    # Lateral chest
-            'central_line': {'x': (0.4, 0.6), 'y': (0.05, 0.2)}, # Neck to SVC
-            'ecg_electrodes': [                                  # Standard positions
-                {'x': (0.3, 0.4), 'y': (0.25, 0.35)},  # RA
-                {'x': (0.6, 0.7), 'y': (0.25, 0.35)},  # LA  
-                {'x': (0.3, 0.4), 'y': (0.5, 0.6)},    # RL
-                {'x': (0.6, 0.7), 'y': (0.5, 0.6)},    # LL
-                {'x': (0.45, 0.55), 'y': (0.35, 0.45)} # V
+            'pacemaker': {'x': (0.65, 0.82), 'y': (0.15, 0.28)},    # Right upper chest (tighter, infraclavicular)
+            'chest_tube': {'x': (0.12, 0.28), 'y': (0.45, 0.68)},    # Lateral chest (mid-axillary line)
+            'central_line': {'x': (0.42, 0.58), 'y': (0.08, 0.22)}, # Neck to SVC (more centered, higher start)
+            'ecg_electrodes': [                                      # Standard 5-lead positions (tighter bounds)
+                {'x': (0.32, 0.38), 'y': (0.28, 0.34)},  # RA (right arm/shoulder)
+                {'x': (0.62, 0.68), 'y': (0.28, 0.34)},  # LA (left arm/shoulder)
+                {'x': (0.32, 0.38), 'y': (0.52, 0.58)},  # RL (right lower chest)
+                {'x': (0.62, 0.68), 'y': (0.52, 0.58)},  # LL (left lower chest)
+                {'x': (0.47, 0.53), 'y': (0.38, 0.44)}   # V (precordial - cardiac apex)
             ]
         }
         
