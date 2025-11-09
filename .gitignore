@@ -1,3 +1,10 @@
 Data/
 what_I_have_learnt.txt
 implementation_roadmap.md
+/speech.txt
+/speech_refined.txt
+/Scripts/model/model.pth
+/Scripts/model/logs/
+/Scripts/model/results/
+/Scripts/model/model_validation_results/
+/Scripts/model/enhanced_validation_results/

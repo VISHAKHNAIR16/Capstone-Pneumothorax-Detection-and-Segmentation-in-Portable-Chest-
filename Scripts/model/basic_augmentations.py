@@ -5,18 +5,20 @@ All issues resolved:
 2. Brightness VERIFIED (working fine)
 3. Contrast VERIFIED (working fine)
 4. Noise VERIFIED (working fine)
+5. Multi-scale processing ADDED (for small pneumothorax detection)
 
 CRITICAL FIXES:
 - Rotation angle: ±3° → ±1.5° (REDUCED - was too aggressive)
 - Interpolation: LINEAR (best for medical images)
 - Clipping: Explicit after rotation to prevent overflow
+- Multi-scale: 3 scales (1.0x, 0.75x, 1.25x) for small pneumothorax
 """
 
 import numpy as np
 import cv2
 from scipy.ndimage import map_coordinates, gaussian_filter
 import random
-from typing import Tuple
+from typing import Tuple, List
 
 
 class BasicAugmentation:
@@ -30,6 +32,7 @@ class BasicAugmentation:
     - Contrast: ±15% (VERIFIED - working fine)
     - Noise: σ=0.01-0.05 (VERIFIED - working fine)
     - Elastic: Mild deformation (optional)
+    - Multi-scale: 3 scales for small pneumothorax detection
     - REMOVED: Horizontal flip (not clinically valid)
     """
     
@@ -45,6 +48,10 @@ class BasicAugmentation:
             'brightness_range': 0.2,           # ±20% brightness variation
             'contrast_range': 0.15,            # ±15% contrast variation
             'noise_std_range': (0.01, 0.05),   # Gaussian noise std dev
+            
+            # MULTI-SCALE PROCESSING (FOR SMALL PNEUMOTHORAX)
+            'scale_factors': [1.0, 0.75, 1.25],  # Multi-scale factors
+            'scale_probability': 0.5,          # Probability to apply scaling
         }
     
     
@@ -345,7 +352,95 @@ class BasicAugmentation:
     
     
     # ================================================================
-    # COMBINED AUGMENTATION PIPELINE (FIXED - NO FLIP)
+    # 6. MULTI-SCALE PROCESSING (NEW - FOR SMALL PNEUMOTHORAX)
+    # ================================================================
+    
+    @staticmethod
+    def scale_image_mask(
+        image: np.ndarray, 
+        mask: np.ndarray, 
+        scale_factor: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Scale image and mask by specified factor
+        
+        CRITICAL FOR SMALL PNEUMOTHORAX DETECTION:
+        - 79.4% of pneumothorax cases are small in the dataset
+        - Multi-scale helps detect lesions at different sizes
+        - Preserves aspect ratio (no distortion)
+        
+        Args:
+            image: Input image (H, W), normalized [-1, 1]
+            mask: Binary mask (H, W), values [0, 1]
+            scale_factor: Scaling factor (0.75, 1.0, 1.25)
+        
+        Returns:
+            Tuple of (scaled_image, scaled_mask) at original size
+        """
+        if scale_factor == 1.0:
+            return image.copy(), mask.copy()
+        
+        h, w = image.shape
+        new_h, new_w = int(h * scale_factor), int(w * scale_factor)
+        
+        # Scale down then back up to original size (simulates multi-scale processing)
+        if scale_factor < 1.0:
+            # Scale down
+            scaled_image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            scaled_mask = cv2.resize(mask, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+            
+            # Scale back to original size
+            scaled_image = cv2.resize(scaled_image, (w, h), interpolation=cv2.INTER_LINEAR)
+            scaled_mask = cv2.resize(scaled_mask, (w, h), interpolation=cv2.INTER_NEAREST)
+        
+        else:  # scale_factor > 1.0
+            # Scale up with center crop
+            scaled_image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            scaled_mask = cv2.resize(mask, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+            
+            # Center crop to original size
+            start_h = (new_h - h) // 2
+            start_w = (new_w - w) // 2
+            scaled_image = scaled_image[start_h:start_h+h, start_w:start_w+w]
+            scaled_mask = scaled_mask[start_h:start_h+h, start_w:start_w+w]
+        
+        # Ensure proper clipping
+        scaled_image = np.clip(scaled_image, -1.0, 1.0)
+        scaled_mask = np.clip(scaled_mask, 0.0, 1.0)
+        
+        return scaled_image, scaled_mask
+    
+    
+    def random_scale(
+        self, 
+        image: np.ndarray, 
+        mask: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Apply random scaling for multi-scale processing
+        
+        OPTIMIZED FOR SMALL PNEUMOTHORAX:
+        - 0.75x: Helps detect very small lesions
+        - 1.0x: Original resolution
+        - 1.25x: Helps with medium-sized lesions
+        
+        Args:
+            image: Input image (H, W)
+            mask: Binary mask (H, W)
+        
+        Returns:
+            Tuple of (scaled_image, scaled_mask)
+        """
+        # Only apply scaling 50% of the time to maintain diversity
+        if random.random() < self.params['scale_probability']:
+            scale_factor = random.choice(self.params['scale_factors'])
+            return self.scale_image_mask(image, mask, scale_factor)
+        else:
+            return image.copy(), mask.copy()
+    
+    
+    # ================================================================
+    # COMBINED AUGMENTATION PIPELINE (FIXED - WITH MULTI-SCALE)
     # ================================================================
     
     def augment(
@@ -356,7 +451,8 @@ class BasicAugmentation:
         brightness: bool = True,
         contrast: bool = True,
         noise: bool = True,
-        elastic: bool = False
+        elastic: bool = False,
+        multi_scale: bool = True
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         FIXED: Apply multiple augmentations sequentially
@@ -366,6 +462,7 @@ class BasicAugmentation:
         - Brightness: ±20% (VERIFIED - working)
         - Contrast: ±15% (VERIFIED - working)
         - Noise: σ=0.01-0.05 (VERIFIED - working)
+        - Multi-scale: 3 scales for small pneumothorax (NEW)
         - Elastic: Optional (mild deformation)
         - REMOVED: Horizontal flip (anatomically invalid)
         
@@ -374,6 +471,7 @@ class BasicAugmentation:
         ✅ Proper interpolation (LINEAR)
         ✅ Explicit clipping after each operation
         ✅ Verified brightness, contrast, noise working correctly
+        ✅ Added multi-scale processing for small pneumothorax
         
         Args:
             image: Input image (H, W), normalized [-1, 1]
@@ -383,12 +481,17 @@ class BasicAugmentation:
             contrast: Apply random contrast adjustment
             noise: Apply random Gaussian noise
             elastic: Apply random elastic deformation (optional)
+            multi_scale: Apply random scaling (for small pneumothorax)
         
         Returns:
             Tuple of (augmented_image, augmented_mask)
         """
         aug_image = image.copy()
         aug_mask = mask.copy()
+        
+        # ---- MULTI-SCALE PROCESSING (NEW - FOR SMALL PNEUMOTHORAX) ----
+        if multi_scale:
+            aug_image, aug_mask = self.random_scale(aug_image, aug_mask)
         
         # ---- GEOMETRIC AUGMENTATIONS ----
         if rotation:
@@ -414,7 +517,6 @@ class BasicAugmentation:
         return aug_image, aug_mask
 
 
-
 if __name__ == "__main__":
     print("="*80)
     print("✅ FIXED Medical Image Augmentation Module - PRODUCTION READY")
@@ -424,6 +526,7 @@ if __name__ == "__main__":
     print("\n  GEOMETRIC (Anatomically Safe):")
     print("    • Random Rotation: ±1.5° (FIXED: reduced, proper interpolation)")
     print("    • Elastic Deformation: α=8-15, σ=3-5 (optional)")
+    print("    • Multi-scale Processing: [0.75x, 1.0x, 1.25x] (NEW - for small pneumothorax)")
     print("\n  INTENSITY (VERIFIED WORKING):")
     print("    • Brightness: ±20% (PSNR 31.23 dB, SSIM 0.9848) ✅")
     print("    • Contrast: ±15% (PSNR 30.84 dB, SSIM 0.9550) ✅")
@@ -431,6 +534,11 @@ if __name__ == "__main__":
     
     print("\n✗ REMOVED:")
     print("    • Horizontal Flip (anatomically invalid)")
+    
+    print("\n🎯 MULTI-SCALE PROCESSING BENEFITS:")
+    print("    • 79.4% of pneumothorax cases are small in the dataset")
+    print("    • Helps detect lesions at different scales")
+    print("    • Improves robustness for real-world variability")
     
     print("\n" + "="*80)
     print("FIXES APPLIED:")
@@ -441,5 +549,6 @@ if __name__ == "__main__":
     print("   2. Changed interpolation: cv2.INTER_LINEAR (best for medical)")
     print("   3. Added explicit clipping after rotation")
     print("   4. Changed border mode: REFLECT (preserve edge values)")
-    print("\n✅ RESULT: Rotation now within acceptable range")
+    print("   5. Added multi-scale processing for small pneumothorax")
+    print("\n✅ RESULT: Rotation now within acceptable range + Multi-scale added")
     print("="*80)

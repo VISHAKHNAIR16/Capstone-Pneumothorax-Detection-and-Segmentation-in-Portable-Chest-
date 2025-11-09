@@ -32,47 +32,48 @@ class ChestXRayArtifactGenerator:
         """
         self.blend_factor = np.clip(blend_factor, 0.3, 0.5)
         
-        # Clinical intensity ranges (BRIGHT - radiopaque)
+        
+
+        # CRITICAL FIX: Reduce intensities to prevent overfitting
         self.intensity_ranges = {
-            'pacemaker': (250, 265),      # Very bright - metallic
-            'chest_tube': (220, 240),     # Bright - plastic/metal
-            'central_line': (230, 245),   # Bright - plastic
-            'ecg_electrode': (200, 220),  # Moderately bright - electrode gel
-            'ecg_wire': (180, 200),       # Less bright - thin wires
-            'suture': (210, 230),         # Bright - surgical material
+            'pacemaker': (190, 210),      # Reduced from 250-265
+            'chest_tube': (180, 200),     # Reduced from 220-240  
+            'central_line': (185, 205),   # Reduced from 230-245
+            'ecg_electrode': (160, 180),  # Reduced from 200-220
+            'ecg_wire': (140, 160),       # Reduced from 180-200
         }
         
         # Realistic sizes in mm (converted to pixels at 512x512 ~0.5mm/pixel)
         self.device_sizes_mm = {
             'pacemaker_device': (11, 21),     # 15-25mm typical pacemaker
             'pacemaker_lead': (2, 3),         # 2-3mm lead diameter
-            'chest_tube': (6, 10),           # 10-14mm diameter
+            'chest_tube': (8, 12),           # 10-14mm diameter
             'central_line': (3, 5),           # 3-5mm diameter  
-            'ecg_electrode': (3, 2),        # 15-25mm electrode
+            'ecg_electrode': (7, 12),        # 15-25mm electrode
             'ecg_wire': (1, 2),               # 1-2mm wire diameter
         }
         
-        # Coverage limits (clinical realism)
-        self.coverage_limits = {
-            'pacemaker': 0.02,    # < 2%
-            'chest_tube': 0.03,   # < 3%
-            'central_line': 0.01, # < 1%
-            'ecg_leads': 0.03,    # < 5%
-            'multiple': 0.07,     # < 8% total
-        }
-        
-        # Anatomical placement regions (normalized coordinates)
+                # Anatomical placement regions (normalized coordinates) with pneumothorax-safe constraints
         self.placement_regions = {
-            'pacemaker': {'x': (0.65, 0.82), 'y': (0.15, 0.28)},    # Right upper chest (tighter, infraclavicular)
-            'chest_tube': {'x': (0.12, 0.28), 'y': (0.45, 0.68)},    # Lateral chest (mid-axillary line)
-            'central_line': {'x': (0.42, 0.58), 'y': (0.08, 0.22)}, # Neck to SVC (more centered, higher start)
-            'ecg_electrodes': [                                      # Standard 5-lead positions (tighter bounds)
-                {'x': (0.32, 0.38), 'y': (0.28, 0.34)},  # RA (right arm/shoulder)
-                {'x': (0.62, 0.68), 'y': (0.28, 0.34)},  # LA (left arm/shoulder)
-                {'x': (0.32, 0.38), 'y': (0.52, 0.58)},  # RL (right lower chest)
-                {'x': (0.62, 0.68), 'y': (0.52, 0.58)},  # LL (left lower chest)
-                {'x': (0.47, 0.53), 'y': (0.38, 0.44)}   # V (precordial - cardiac apex)
+            'pacemaker': {'x': (0.75, 0.90), 'y': (0.05, 0.15)},      # Right infraclavicular, avoiding lung apex
+            'chest_tube': {'x': (0.08, 0.22), 'y': (0.70, 0.85)},     # Lower lateral chest, below lung bases
+            'central_line': {'x': (0.48, 0.52), 'y': (0.05, 0.18)},   # Central supraclavicular, avoiding lungs
+            'ecg_electrodes': [                                       # Peripheral placement avoiding lung fields
+                {'x': (0.25, 0.32), 'y': (0.15, 0.22)},  # RA (right shoulder, away from apex)
+                {'x': (0.68, 0.75), 'y': (0.15, 0.22)},  # LA (left shoulder, away from apex)
+                {'x': (0.20, 0.28), 'y': (0.75, 0.82)},  # RL (right lower abdomen)
+                {'x': (0.72, 0.80), 'y': (0.75, 0.82)},  # LL (left lower abdomen)
+                {'x': (0.48, 0.52), 'y': (0.45, 0.50)}   # V (lower sternum, below cardiac silhouette)
             ]
+        }
+
+        # Tighter coverage limits for pneumothorax detection safety
+        self.coverage_limits = {
+            'pacemaker': 0.015,    # < 1.5% (very small - pacemakers are compact)
+            'chest_tube': 0.025,   # < 2.5% (thin tubes only)
+            'central_line': 0.008, # < 0.8% (very thin lines)
+            'ecg_leads': 0.020,    # < 2.0% (minimal wire coverage)
+            'multiple': 0.045,     # < 4.5% total (strict limit for multiple devices)
         }
         
         if random_seed is not None:
